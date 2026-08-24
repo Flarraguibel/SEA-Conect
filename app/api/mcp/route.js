@@ -45,7 +45,11 @@ async function buscarProyectosSEIA(nombre, limit = 15) {
     body: body.toString(),
   });
   if (!resp.ok) throw new Error(`El SEA respondió ${resp.status} al buscar proyectos.`);
-  const json = await resp.json();
+  // seia.sea.gob.cl declara charset=ISO-8859-1 (Latin-1), no UTF-8. fetch().json()
+  // siempre decodifica como UTF-8 y corrompe cualquier tilde/ñ, así que hay que leer
+  // los bytes crudos y decodificarlos como latin1 antes de parsear el JSON.
+  const buf = await resp.arrayBuffer();
+  const json = JSON.parse(Buffer.from(buf).toString("latin1"));
   if (!json.status) throw new Error("El buscador del SEA no devolvió resultados válidos.");
 
   return (json.data || []).map((p) => ({
@@ -64,7 +68,9 @@ async function buscarDocumentosSEIA(idExpediente) {
   const url = `https://seia.sea.gob.cl/expediente/xhr_busqueda_expediente.php?id_expediente=${idExpediente}`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`El SEA respondió ${resp.status} al consultar el expediente.`);
-  const html = await resp.text();
+  // Mismo tema de encoding: seia.sea.gob.cl es ISO-8859-1, no UTF-8.
+  const buf = await resp.arrayBuffer();
+  const html = Buffer.from(buf).toString("latin1");
 
   const filas = html.split(/(?=<tr[\s>])/).filter((f) => /<tr[\s>]/.test(f));
   const documentos = [];
